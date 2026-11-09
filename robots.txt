@@ -1,0 +1,45 @@
+User-Agent: *
+Disallow: /page145402236.html
+Disallow: /heder
+Disallow: /page146312956.html
+Disallow: /page149945136.html
+Disallow: /error_page
+Disallow: /page149944226.html
+Disallow: /thanks
+Disallow: /page274559309.html
+Disallow: /thanks_okleyka
+Disallow: /page274563609.html
+Disallow: /thanks_antikorrozijnaya_obrabotka
+Disallow: /page274565109.html
+Disallow: /thanks_himchistka
+Disallow: /page274567009.html
+Disallow: /thanks_polirovka
+Disallow: /page274570409.html
+Disallow: /thanks_restavraciya_salona
+Disallow: /page274571709.html
+Disallow: /thanks_poshiv_remont_salona
+Disallow: /page274572509.html
+Disallow: /thanks_keramicheskoe_pokrytie
+Disallow: /page274574209.html
+Disallow: /thanks_shumoizolyaciya
+Disallow: /page274574709.html
+Disallow: /thanks_tonirovka
+Disallow: /page274576109.html
+Disallow: /thanks_moyka
+Disallow: /tilda/form*
+Disallow: /tilda/rec*
+Disallow: /tilda/click*
+Disallow: /tilda/scroll*
+Disallow: /tilda/popup*
+Disallow: /tilda/cart*
+Disallow: /tilda/product*
+Disallow: /tilda/event*
+Disallow:
+
+
+Sitemap: https://mds.by/sitemap.xml
+Sitemap: https://mds.by/sitemap-feeds.xml
+
+# LLM metadata
+# https://mds.by/llms.txt
+# https://mds.by/llms-full.txt
