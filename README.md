@@ -7,11 +7,14 @@
 | Путь | Содержимое |
 |---|---|
 | `index.html`, `price/`, `about/`, `services/…` | 27 страниц из `sitemap.xml` + 17 страниц постов и кейсов (`…/tpost/…`) |
+| `thanks*/`, `error_page/`, `heder/` | служебные страницы, которых нет в sitemap: «Спасибо за заявку» (на них формы переводят после отправки), страница ошибки, шапка |
+| `404.html` | страница ошибки для статического хостинга (копия `error_page`) |
 | `assets/img/` | все изображения (оригиналы и миниатюры) |
-| `assets/tilda/` | CSS/JS рантайма Tilda (анимации, Zero-блоки, слайдеры, попапы, формы) и бандлы стилей каждой страницы |
+| `assets/tilda/css/`, `assets/tilda/js/` | CSS/JS рантайма Tilda (анимации, Zero-блоки, слайдеры, попапы, формы) и бандлы каждой страницы |
+| `assets/tilda/lib/` и др. | файлы, которые скрипты Tilda догружают сами: иконки кнопок, флаги для маски телефона, модули форм |
 | `assets/fonts/` | шрифты (Inter, Tilda Sans) |
 | `**/feeds/*.json` | снимки лент блога, работ и кейсов (раньше грузились из API Tilda) |
-| `robots.txt`, `sitemap*.xml`, `llms*.txt` | SEO-файлы без изменений |
+| `robots.txt`, `sitemap*.xml`, `rss-feed-*.xml`, `llms*.txt` | SEO-файлы и RSS без изменений |
 | `tools/` | скрипты, которыми сделана выгрузка (можно перезапустить после правок в Tilda) |
 
 ### SEO
@@ -19,6 +22,8 @@
 
 ### Ссылки
 Внутренние ссылки относительные: сайт открывается и с корня домена, и из подпапки (например, GitHub Pages `user.github.io/mds-by/`).
+
+Скрипты Tilda сами собирают адреса вида `https://static.tildacdn.…/js/…`. В копии они переписаны на `window.t_localAssetBase`: это абсолютный адрес папки `assets/tilda`, который каждая страница задаёт первой строкой `<head>`.
 
 ## Локальный запуск
 
@@ -47,6 +52,6 @@ python3 -m http.server 8000
 ## Повторная выгрузка
 
 ```bash
-python3 tools/mirror.py tools/urls.txt . /tmp/mds-cache   # tools/urls.txt — список URL страниц из sitemap
+python3 tools/mirror.py tools/urls.txt . /tmp/mds-cache   # tools/urls.txt — URL страниц: sitemap + посты + служебные
 python3 tools/feeds.py . /tmp/mds-cache
 ```

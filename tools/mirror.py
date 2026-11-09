@@ -62,9 +62,9 @@ def asset_local_path(url):
     if u.netloc.startswith("fonts.gstatic"):
         return "assets/fonts/" + p
     if p.startswith("ws/project"):  # per-page block bundles
-        p = p.split("/", 2)[2]
-        return "assets/tilda/" + p
-    if p.startswith(("js/", "css/")):
+        name = p.split("/", 2)[2]
+        return "assets/tilda/" + ("css/" if name.endswith(".css") else "js/") + name
+    if p.startswith(("js/", "css/", "lib/")):
         return "assets/tilda/" + p
     # images: tildXXXX-.../-/resize/20x/file.png -> keep unique dir
     p = p.replace("/-/", "/_/")
@@ -97,10 +97,59 @@ def download_asset(raw):
         text = data.decode("utf-8", "replace")
         text = rewrite_css(text, url, local)
         data = text.encode()
+    elif local.endswith(".js"):
+        data = rewrite_js(data.decode("utf-8", "replace")).encode()
     with open(dest, "wb") as f:
         f.write(data)
     downloaded[url] = local
     return local
+
+
+# Tilda scripts build CDN URLs at runtime: "https://static.tildacdn."+zone()+"/js/x.js".
+# Point them at the local assets/tilda/ folder (window.t_localAssetBase, set in every page).
+DYN_CDN_RE = re.compile(r"""https://static\.tildacdn\.(["'])\+[\w.]+\(\)\+(["'])""")
+DYNAMIC_EXTRAS = [  # files those scripts may request
+    "js/tilda-undercut-1.0.min.js", "js/tilda-forms-custommask-1.0.min.js",
+    "js/tilda-forms-payments-1.0.min.js", "js/tilda-forms-dict-1.0.min.js",
+    "js/tilda-errors-1.0.min.js", "js/tilda-performance-1.0.min.js",
+    "js/highlight.min.js", "js/ya-share.js", "css/highlight.min.css",
+    "lib/flags/flags7.png", "ffb6456b-781b-40e8-9517-ffb5225e8bcd/imgfish.jpg",
+]
+CSS_VAR_URL_RE = re.compile(r"""(--[\w-]+\s*:\s*url\(\s*['"]?)([^'")]+)""")
+CSS_DIR_FILE = "assets/tilda/css/_.css"  # every stylesheet lives in this folder
+
+
+DYN_CDN_BASE_RE = re.compile(r'"https://static\.tildacdn\."\+[\w.]+\(\)(?=[;,)])')
+
+
+def rewrite_js(text):
+    text = DYN_CDN_RE.sub(lambda m: m.group(1) + "+window.t_localAssetBase+" + m.group(2), text)
+    # bare base URL, e.g. zero-forms: d="https://static.tildacdn."+zone();
+    return DYN_CDN_BASE_RE.sub("window.t_localAssetBase", text)
+
+
+def download_dynamic_extras():
+    for p in DYNAMIC_EXTRAS:
+        data = fetch("https://static.tildacdn.biz/" + p)
+        if data is None:
+            continue
+        dest = os.path.join(OUT, "assets/tilda", p)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        if p.endswith(".js"):
+            data = rewrite_js(data.decode("utf-8", "replace")).encode()
+        open(dest, "wb").write(data)
+
+
+def fix_css_var_urls(html, out_file):
+    """url() inside a CSS custom property resolves against the stylesheet that
+    uses var(), not the page — so make it relative to assets/tilda/css/."""
+    def repl(m):
+        ref = m.group(2)
+        if ref.startswith(("http", "data:", "//", "#")):
+            return m.group(0)
+        target = os.path.normpath(os.path.join(os.path.dirname(out_file), ref))
+        return m.group(1) + rel(CSS_DIR_FILE, target)
+    return CSS_VAR_URL_RE.sub(repl, html)
 
 
 def rel(from_file, to_path):
@@ -166,13 +215,15 @@ def rewrite_internal_links(html, out_file, page_paths):
         return m.group(0)
 
     # only rewrite <a href>; keep canonical / og:url / hreflang absolute for SEO
-    return re.sub(r'(<a\b[^>]*?\shref)=(["\'])([^"\']*)\2', repl, html)
+    html = re.sub(r'(<a\b[^>]*?\shref)=(["\'])([^"\']*)\2', repl, html)
+    # form redirect targets ("thanks" pages)
+    return re.sub(r'(data-success-url)=(["\'])([^"\']*)\2', repl, html)
 
 
-def process_page(url, page_paths):
+def process_page(url, page_paths, out_file=None):
     raw = fetch(url)
     html = raw.decode("utf-8", "replace")
-    out_file = page_out_path(url)
+    out_file = out_file or page_out_path(url)
 
     for p in TRACKING_PATTERNS:
         html = p.sub("", html)
@@ -186,8 +237,11 @@ def process_page(url, page_paths):
             html = html.replace(a, rel(out_file, lp))
 
     # local /custom.css
-    html = re.sub(r'href="/custom\.css\?t=\d+"', f'href="{rel(out_file, "assets/custom.css")}"', html)
+    html = re.sub(r'href="/custom\.css\?t=\d+"', f'href="{rel(out_file, "assets/tilda/css/custom.css")}"', html)
     html = rewrite_internal_links(html, out_file, page_paths)
+    html = fix_css_var_urls(html, out_file)
+    base = rel(out_file, "assets/tilda")
+    html = html.replace("<head>", '<head><script>window.t_localAssetBase=new URL("%s",location.href).href.replace(/\\/$/,"");</script>' % base, 1)
 
     dest = os.path.join(OUT, out_file)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -202,11 +256,16 @@ def main():
     os.makedirs(os.path.join(OUT, "assets"), exist_ok=True)
     css = fetch(SITE + "/custom.css")
     if css:
-        text = rewrite_css(css.decode("utf-8", "replace"), SITE + "/custom.css", "assets/custom.css")
-        open(os.path.join(OUT, "assets/custom.css"), "w").write(text)
+        text = rewrite_css(css.decode("utf-8", "replace"), SITE + "/custom.css", "assets/tilda/css/custom.css")
+        os.makedirs(os.path.join(OUT, "assets/tilda/css"), exist_ok=True)
+        open(os.path.join(OUT, "assets/tilda/css/custom.css"), "w").write(text)
+    download_dynamic_extras()
     for u in urls:
         out, n = process_page(u, page_paths)
         print(f"{out}: {n} assets")
+        if u.rstrip("/").endswith("/error_page"):  # static hosts serve /404.html
+            process_page(u, page_paths, out_file="404.html")
+            print("404.html: from error_page")
     print("total assets:", sum(1 for v in downloaded.values() if v))
 
 
